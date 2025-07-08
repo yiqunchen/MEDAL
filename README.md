@@ -1,6 +1,6 @@
 ## MEDAL Dataset
 
-​MEDAL (Medical Evidence Discrepancy Assessment with LLMs) is a proposed dataset designed to evaluate the capabilities of Large Language Models (LLMs) in assessing the quality of medical evidence, particularly when discrepancies arise between observational studies and clinical trials. The primary objective is to determine how effectively LLMs can discern the most accurate conclusions when faced with contradictory research findings.
+MEDAL (Medical Evidence Discrepancy Assessment with LLMs) is a proposed dataset designed to evaluate the capabilities of Large Language Models (LLMs) in assessing the quality of medical evidence, particularly when discrepancies arise between observational studies and clinical trials. The primary objective is to determine how effectively LLMs can discern the most accurate conclusions when faced with contradictory research findings.
 
 ### Functions 
 The functions are a bit messy right now so slack me if you have any questions!
