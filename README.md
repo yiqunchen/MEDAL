@@ -1,23 +1,104 @@
-## MEDAL Dataset
+## MEDAL: Medical Evidence Discrepancy Assessment with LLMs
 
-MEDAL (Medical Evidence Discrepancy Assessment with LLMs) is a proposed dataset designed to evaluate the capabilities of Large Language Models (LLMs) in assessing the quality of medical evidence, particularly when discrepancies arise between observational studies and clinical trials. The primary objective is to determine how effectively LLMs can discern the most accurate conclusions when faced with contradictory research findings.
+MEDAL evaluates how LLMs assess clinical evidence and reconcile discrepancies between observational studies and randomized clinical trials (RCTs).
 
-### Functions 
-The functions are a bit messy right now so slack me if you have any questions!
-- `evaluate-gpt-4o-mini-answers.py` is a function that sends the prompt to OpenAI api and saves the eval result to a json. It's written in an async way (think of it as we are  sending multiple requests to API concurrently to avoid I/O bottleneck) and is controlled by the parameter `max_concurrent`. You may need to decrease `max_concurrent` especially if your OpenAI usage tier is low since it will hit the I/O token limits pretty easily.
-- `generate-negation-prompt.py` generates negative prompt asynchronously. 
-- `gpt4-generate-questions.py` generates the questions from input abstract
-- `get-json-response-4omini-4o-question.ipynb` does some basic data analysis of the results but i am sure you do a lot better..
+### Quick start
+1) Install deps
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+2) Configure secrets/paths
+- Copy `ENV.sample` to `.env` and set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and optional `COCHRANE_USERNAME`/`COCHRANE_PASSWORD`.
 
-### Key Components of the MEDAL Project:
+3) Run with new CLIs in `scripts/`
+- Generate questions from abstracts (supports PKL or JSONL), specify model (works with gpt-4o and gpt-5):
+```bash
+python scripts/generate_questions.py --input-pkl data/intermediate/clean_pubmed_abstract_data_no_protocol.pkl --out-jsonl data/processed/qa.jsonl --model gpt-4o --max-concurrent 8
 
-*Dataset Compilation*:
+# or with JSONL source and GPT-5
+python scripts/generate_questions.py --input-jsonl data/intermediate/abstracts.jsonl --out-jsonl data/processed/qa_gpt5.jsonl --model gpt-5 --max-concurrent 8
+```
 
-- Curate a comprehensive collection of paired observational studies and clinical trials that report on similar medical interventions or outcomes but present differing conclusions.​
-Ensure the dataset spans multiple clinical domains to assess the generalizability of LLMs across various medical topics.​
+- Optional: refine generated QA items with your chosen model (works with gpt-5):
+```bash
+python scripts/refine_questions.py \
+  --input-jsonl data/processed/qa.jsonl \
+  --out-jsonl data/processed/qa_refined.jsonl \
+  --model gpt-4o --max-concurrent 8
 
-- Develop a standardized annotation schema to categorize the nature and extent of discrepancies between studies.​
-Engage medical experts to provide ground truth assessments, determining which study's conclusions are more aligned with current clinical guidelines or consensus.​
+python scripts/refine_questions.py \
+  --input-jsonl data/processed/qa_gpt5.jsonl \
+  --out-jsonl data/processed/qa_gpt5_refined.jsonl \
+  --model gpt-5 --max-concurrent 8
+```
+- Create negation set:
+```bash
+python scripts/negate_dataset.py --input-jsonl data/processed/qa.jsonl --out-jsonl data/processed/qa_negated.jsonl --model gpt-4o-mini --max-concurrent 5
+```
+- Evaluate a dataset:
+```bash
+python scripts/evaluate.py --input-jsonl data/processed/qa.jsonl --out-json data/runs/$(date +%F)/gpt4o_eval.json --model gpt-4o
+```
 
-- Deploy state-of-the-art LLMs to analyze the dataset, prompting them to provide summaries, reconcile conflicting findings, and indicate which study they deem more credible.​
-Evaluate the LLMs' outputs against expert assessments, focusing on accuracy, coherence, and the ability to handle contradictory information.
+### Reproducible Batch Inference (GPT-4o-mini and GPT-5)
+
+1) Prepare batch input JSONL from a QAPair JSONL:
+```bash
+python scripts/batch_prepare.py \
+  --input-jsonl data/processed/qa.jsonl \
+  --out-jsonl data/processed/qa_batch_gpt4omini.jsonl \
+  --model gpt-4o-mini \
+  --response-format-json
+
+python scripts/batch_prepare.py \
+  --input-jsonl data/processed/qa.jsonl \
+  --out-jsonl data/processed/qa_batch_gpt5.jsonl \
+  --model gpt-5 \
+  --response-format-json
+```
+
+2) Submit and monitor batch job (downloads results/errors on completion):
+```bash
+python scripts/batch_submit.py \
+  --input-jsonl data/processed/qa_batch_gpt4omini.jsonl \
+  --display-name "MEDAL QA gpt-4o-mini"
+
+python scripts/batch_submit.py \
+  --input-jsonl data/processed/qa_batch_gpt5.jsonl \
+  --display-name "MEDAL QA gpt-5"
+```
+Results will be saved under `data/runs/<batch_id>.results.jsonl` (and errors if any).
+
+3) Parse results and merge with ground truth:
+```bash
+python scripts/batch_parse_outputs.py \
+  --input-jsonl data/processed/qa.jsonl \
+  --batch-results-jsonl data/runs/<batch_id>.results.jsonl \
+  --out-pred-jsonl data/runs/<batch_id>.predictions.jsonl \
+  --out-merged-jsonl data/runs/<batch_id>.merged.jsonl
+```
+
+4) Analyze error distributions and produce CSV summaries:
+```bash
+python scripts/analyze_errors.py \
+  --merged-jsonl data/runs/<batch_id>.merged.jsonl \
+  --out-dir data/runs/<batch_id>/analysis
+```
+
+This batch pipeline uses OpenAI Batch (see docs: `https://platform.openai.com/docs/guides/batch`). The JSONL lines are formatted with `custom_id`, `method`, `url`, and `body` targeting `/v1/chat/completions`.
+
+### Repo layout (core)
+- `medal/`: small package for config, clients, schemas
+- `scripts/`: CLIs for generation, negation, evaluation
+- `data/`: put your `raw/`, `processed/`, `runs/` here (gitignored)
+- `notebooks/`: exploratory analysis
+
+### Data schema (JSON lines)
+- QAPair per line:
+```json
+{ "doi": "...", "question": "...", "answer": "Yes|No|No Evidence", "evidence-quality": "High|Moderate|Low|Very Low|Missing", "discrepancy": "Yes|No|Missing", "notes": "..." }
+```
+
+### Notes
+- Old ad-hoc scripts remain but are sanitized to use environment variables and relative paths. Prefer using `scripts/` going forward.

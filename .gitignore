@@ -1,3 +1,14 @@
+.env
+__pycache__/
+.DS_Store
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
+logs/
+downloads/
+cochrane_cache/
+data/
+*.log
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
