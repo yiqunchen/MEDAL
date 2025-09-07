@@ -2,6 +2,8 @@
 
 MEDAL evaluates how LLMs assess clinical evidence and reconcile discrepancies between observational studies and randomized clinical trials (RCTs).
 
+We use a multi‑source dataset of clinical Q&A derived from Cochrane systematic reviews and clinical guidelines. The curated QA dataset, processing scripts, and evaluation code are available at https://anonymous.4open.science/r/llm-evidence-qa-DB-review/; raw materials are included here (see paths below) or publicly accessible from their original sources.
+
 ### Quick start
 1) Install deps
 ```bash
@@ -88,11 +90,45 @@ python scripts/analyze_errors.py \
 
 This batch pipeline uses OpenAI Batch (see docs: `https://platform.openai.com/docs/guides/batch`). The JSONL lines are formatted with `custom_id`, `method`, `url`, and `body` targeting `/v1/chat/completions`.
 
+### Makefile pipeline (reproducible)
+Common steps are captured in a Makefile. Override variables as needed.
+```bash
+# Setup
+make install        # create venv + install deps
+make env            # copy ENV.sample -> .env (if missing)
+
+# Generate from a pickle of abstracts
+make gen INPUT_PKL=data/intermediate/clean_pubmed_abstract_data_no_protocol.pkl QA_JSONL=data/processed/qa.jsonl MODEL=gpt-4o MAX_CONC=8
+
+# Optional refinement
+make refine QA_JSONL=data/processed/qa.jsonl REFINED_JSONL=data/processed/qa_refined.jsonl MODEL=gpt-4o MAX_CONC=8
+
+# Negation set and evaluation
+make negate QA_JSONL=data/processed/qa.jsonl NEGATED_JSONL=data/processed/qa_negated.jsonl
+make eval   QA_JSONL=data/processed/qa.jsonl EVAL_JSON=data/runs/$(date +%F)/gpt4o_eval.json MODEL=gpt-4o
+
+# Batch pipeline
+make batch_prepare QA_JSONL=data/processed/qa.jsonl BATCH_MODEL=gpt-4o-mini BATCH_JSONL=data/processed/qa_batch.jsonl
+make batch_submit  BATCH_JSONL=data/processed/qa_batch.jsonl BATCH_OUT_DIR=data/runs
+# After submit, note the printed batch id, then:
+make batch_parse   BATCH_ID=<batch_id> QA_JSONL=data/processed/qa.jsonl BATCH_OUT_DIR=data/runs
+make analyze       BATCH_ID=<batch_id> BATCH_OUT_DIR=data/runs
+```
+
+### Data sources
+- Cochrane systematic reviews: https://www.cochranelibrary.com/
+  - Local artifacts: `files-for-regeneration/clean_pubmed_abstract_data_no_protocol.pkl` (abstracts), `files-for-regeneration/pubmed_context_dataset.json`.
+- Clinical guidelines (AHA and related): https://professional.heart.org/en/guidelines-and-statements/
+  - Local artifacts: `guideline-aha/aha_guideline_evidence_cleaned.csv`, `guideline-aha/mcq_dataset.csv`, `guideline-aha/*_eval_results.json`.
+- Consolidated guideline texts: `medical_guidelines_all_text.jsonl` (root of repo).
+- Curated QA dataset and evaluation code (anonymized for review): https://anonymous.4open.science/r/llm-evidence-qa-DB-review/
+
 ### Repo layout (core)
 - `medal/`: small package for config, clients, schemas
 - `scripts/`: CLIs for generation, negation, evaluation
 - `data/`: put your `raw/`, `processed/`, `runs/` here (gitignored)
-- `notebooks/`: exploratory analysis
+- `archive/notebooks/`: exploratory notebooks
+- `archive/ad_hoc/` and `archive/one_off/`: legacy/one-off scripts (not used by pipeline)
 
 ### Data schema (JSON lines)
 - QAPair per line:
@@ -101,4 +137,5 @@ This batch pipeline uses OpenAI Batch (see docs: `https://platform.openai.com/do
 ```
 
 ### Notes
-- Old ad-hoc scripts remain but are sanitized to use environment variables and relative paths. Prefer using `scripts/` going forward.
+- Prefer using `scripts/` and the Makefile pipeline going forward.
+- Legacy ad-hoc notebooks and one-off scripts have been moved under `archive/` to keep active code paths clean.

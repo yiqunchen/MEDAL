@@ -1,0 +1,11 @@
+# Core runtime
+openai>=1.35,<2
+python-dotenv>=1.0
+tqdm>=4.66
+pydantic>=2.6,<3
+
+# Optional (for plotting and stats in scripts/analyze_errors.py)
+# numpy>=1.26
+# scipy>=1.11
+# matplotlib>=3.7
+
