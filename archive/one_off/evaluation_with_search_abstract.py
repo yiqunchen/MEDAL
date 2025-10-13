@@ -11,7 +11,7 @@ with open("/Users/pql/Desktop/proj/pubmed_context_dataset.json", "r") as f:
 #question_data = dict(list(question_data.items())[:10])
 
 # ==== Async LLM Request Setup ====
-api_key = "***OPENAI_API_KEY_REDACTED***"
+api_key = "OPENAI_API_KEY_REDACTED"
 client = AsyncOpenAI(api_key=api_key)
 
 async def get_response_async(client, prompt, model, semaphore):

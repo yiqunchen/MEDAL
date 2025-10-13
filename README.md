@@ -1,141 +1,307 @@
-## MEDAL: Medical Evidence Discrepancy Assessment with LLMs
+# MEDAL: Medical Evidence Discrepancy Assessment with LLMs
 
-MEDAL evaluates how LLMs assess clinical evidence and reconcile discrepancies between observational studies and randomized clinical trials (RCTs).
+[![Security](https://img.shields.io/badge/security-reviewed-green.svg)](SECURITY.md)
 
-We use a multi‑source dataset of clinical Q&A derived from Cochrane systematic reviews and clinical guidelines. The curated QA dataset, processing scripts, and evaluation code are available at https://anonymous.4open.science/r/llm-evidence-qa-DB-review/; raw materials are included here (see paths below) or publicly accessible from their original sources.
+MEDAL evaluates how Large Language Models (LLMs) assess clinical evidence and reconcile discrepancies between observational studies and randomized clinical trials (RCTs).
 
-### Quick start
-1) Install deps
+We use a multi-source dataset of clinical Q&A derived from Cochrane systematic reviews and clinical guidelines. The curated QA dataset, processing scripts, and evaluation code are available at https://anonymous.4open.science/r/llm-evidence-qa-DB-review/
+
+---
+
+## Quick Start
+
+### 1. Installation
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
+# Clone the repository
+git clone <repo-url>
+cd MEDAL
+
+# Create virtual environment and install dependencies
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
-2) Configure secrets/paths
-- Copy `ENV.sample` to `.env` and set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and optional `COCHRANE_USERNAME`/`COCHRANE_PASSWORD`.
 
-3) Run with new CLIs in `scripts/`
-- Generate questions from abstracts (supports PKL or JSONL), specify model (works with gpt-4o and gpt-5):
+### 2. Configure API Keys
+
+**CRITICAL: Never commit API keys to git!**
+
 ```bash
-python scripts/generate_questions.py --input-pkl data/intermediate/clean_pubmed_abstract_data_no_protocol.pkl --out-jsonl data/processed/qa.jsonl --model gpt-4o --max-concurrent 8
+# Copy the environment template
+cp ENV.sample .env
 
-# or with JSONL source and GPT-5
-python scripts/generate_questions.py --input-jsonl data/intermediate/abstracts.jsonl --out-jsonl data/processed/qa_gpt5.jsonl --model gpt-5 --max-concurrent 8
+# Edit .env and add your API keys
+# .env is already gitignored and will never be committed
+nano .env  # or use your preferred editor
 ```
 
-- Optional: refine generated QA items with your chosen model (works with gpt-5):
+Required keys:
+- `OPENAI_API_KEY` - For GPT-4o, GPT-5, GPT-4o-mini evaluations
+- `OPENROUTER_API_KEY` - For Claude Sonnet 4.5 and DeepSeek evaluations
+
+See [SECURITY.md](SECURITY.md) for detailed security guidelines.
+
+### 3. Run Complete Pipeline
+
 ```bash
-python scripts/refine_questions.py \
+# Run the complete end-to-end analysis
+./run_complete_medal_pipeline.sh
+```
+
+This will:
+1. Validate your environment and API keys
+2. Run model evaluations (GPT-4o, Claude Sonnet 4.5, DeepSeek)
+3. Perform error analysis and compute metrics
+4. Generate visualizations and comparison plots
+
+---
+
+## Repository Structure
+
+```
+MEDAL/
+├── run_complete_medal_pipeline.sh  # Master pipeline script
+├── scripts/                        # Core analysis scripts
+│   ├── evaluate_openrouter.py     # Evaluate using OpenRouter (Claude, DeepSeek)
+│   ├── evaluate.py                # Evaluate using OpenAI API
+│   ├── batch_prepare.py           # Prepare batch evaluation jobs
+│   ├── batch_submit.py            # Submit and monitor batch jobs
+│   ├── batch_parse_outputs.py     # Parse batch results
+│   ├── analyze_errors.py          # Error distribution analysis
+│   ├── compute_model_concordance.py
+│   ├── plot_confusion_heatmaps.py
+│   └── plot_model_comparison.py
+├── data/                          # Data directory (gitignored)
+│   ├── processed/                 # Processed QA datasets
+│   └── runs/                      # Model evaluation outputs
+├── analysis/                      # Analysis outputs (gitignored)
+├── figures/                       # Generated plots (gitignored)
+├── archive/                       # Legacy code and paper drafts
+│   ├── notebooks/                 # Exploratory notebooks
+│   ├── one_off/                   # One-off analysis scripts
+│   ├── paper_drafts/             # Paper abstracts and drafts
+│   └── documentation/            # Historical documentation
+├── ENV.sample                     # Environment template
+├── SECURITY.md                    # Security guidelines
+└── README.md                      # This file
+```
+
+---
+
+## Pipeline Components
+
+### Data Preparation
+
+Input datasets should be in JSONL format with the following schema:
+
+```jsonl
+{"doi": "...", "question": "...", "answer": "Yes|No|No Evidence", "evidence-quality": "High|Moderate|Low|Very Low|Missing", "discrepancy": "Yes|No|Missing", "notes": "..."}
+```
+
+### Model Evaluation
+
+#### OpenRouter Models (Claude Sonnet 4.5, DeepSeek)
+
+```bash
+# Evaluate using Claude Sonnet 4.5
+python3 scripts/evaluate_openrouter.py \
   --input-jsonl data/processed/qa.jsonl \
-  --out-jsonl data/processed/qa_refined.jsonl \
-  --model gpt-4o --max-concurrent 8
+  --out-json data/runs/claude_sonnet_45_eval.json \
+  --model anthropic/claude-sonnet-4.5 \
+  --max-concurrent 15
 
-python scripts/refine_questions.py \
-  --input-jsonl data/processed/qa_gpt5.jsonl \
-  --out-jsonl data/processed/qa_gpt5_refined.jsonl \
-  --model gpt-5 --max-concurrent 8
-```
-- Create negation set:
-```bash
-python scripts/negate_dataset.py --input-jsonl data/processed/qa.jsonl --out-jsonl data/processed/qa_negated.jsonl --model gpt-4o-mini --max-concurrent 5
-```
-- Evaluate a dataset:
-```bash
-python scripts/evaluate.py --input-jsonl data/processed/qa.jsonl --out-json data/runs/$(date +%F)/gpt4o_eval.json --model gpt-4o
-```
-
-### Reproducible Batch Inference (GPT-4o-mini and GPT-5)
-
-1) Prepare batch input JSONL from a QAPair JSONL:
-```bash
-python scripts/batch_prepare.py \
+# Evaluate using DeepSeek
+python3 scripts/evaluate_openrouter.py \
   --input-jsonl data/processed/qa.jsonl \
-  --out-jsonl data/processed/qa_batch_gpt4omini.jsonl \
-  --model gpt-4o-mini \
+  --out-json data/runs/deepseek_eval.json \
+  --model deepseek/deepseek-chat \
+  --max-concurrent 15
+```
+
+#### OpenAI Batch API (GPT-4o, GPT-5)
+
+```bash
+# 1. Prepare batch input
+python3 scripts/batch_prepare.py \
+  --input-jsonl data/processed/qa.jsonl \
+  --out-jsonl data/processed/qa_batch.jsonl \
+  --model gpt-4o \
   --response-format-json
 
-python scripts/batch_prepare.py \
-  --input-jsonl data/processed/qa.jsonl \
-  --out-jsonl data/processed/qa_batch_gpt5.jsonl \
-  --model gpt-5 \
-  --response-format-json
-```
+# 2. Submit batch job
+python3 scripts/batch_submit.py \
+  --input-jsonl data/processed/qa_batch.jsonl \
+  --display-name "MEDAL QA Evaluation"
 
-2) Submit and monitor batch job (downloads results/errors on completion):
-```bash
-python scripts/batch_submit.py \
-  --input-jsonl data/processed/qa_batch_gpt4omini.jsonl \
-  --display-name "MEDAL QA gpt-4o-mini"
-
-python scripts/batch_submit.py \
-  --input-jsonl data/processed/qa_batch_gpt5.jsonl \
-  --display-name "MEDAL QA gpt-5"
-```
-Results will be saved under `data/runs/<batch_id>.results.jsonl` (and errors if any).
-
-3) Parse results and merge with ground truth:
-```bash
-python scripts/batch_parse_outputs.py \
+# 3. Parse results (after batch completes)
+python3 scripts/batch_parse_outputs.py \
   --input-jsonl data/processed/qa.jsonl \
   --batch-results-jsonl data/runs/<batch_id>.results.jsonl \
   --out-pred-jsonl data/runs/<batch_id>.predictions.jsonl \
   --out-merged-jsonl data/runs/<batch_id>.merged.jsonl
 ```
 
-4) Analyze error distributions and produce CSV summaries:
+### Analysis
+
 ```bash
-python scripts/analyze_errors.py \
+# Error distribution analysis
+python3 scripts/analyze_errors.py \
   --merged-jsonl data/runs/<batch_id>.merged.jsonl \
-  --out-dir data/runs/<batch_id>/analysis
+  --out-dir analysis/results/<batch_id>
+
+# Model concordance analysis
+python3 scripts/compute_model_concordance.py
+
+# Generate confusion matrices
+python3 scripts/plot_confusion_heatmaps.py
+
+# Model comparison plots
+python3 scripts/plot_model_comparison.py
 ```
 
-This batch pipeline uses OpenAI Batch (see docs: `https://platform.openai.com/docs/guides/batch`). The JSONL lines are formatted with `custom_id`, `method`, `url`, and `body` targeting `/v1/chat/completions`.
+---
 
-### Makefile pipeline (reproducible)
-Common steps are captured in a Makefile. Override variables as needed.
+## Data Sources
+
+- **Cochrane Systematic Reviews**: https://www.cochranelibrary.com/
+  - Local artifacts: `files-for-regeneration/clean_pubmed_abstract_data_no_protocol.pkl`
+- **Clinical Guidelines (AHA)**: https://professional.heart.org/en/guidelines-and-statements/
+  - Local artifacts: `guideline-aha/aha_guideline_evidence_cleaned.csv`
+- **Curated QA Dataset**: https://anonymous.4open.science/r/llm-evidence-qa-DB-review/
+
+---
+
+## Security
+
+**Critical Security Requirements:**
+
+1. Never commit API keys to version control
+2. Always use `.env` for credentials (already gitignored)
+3. Use environment variables in all scripts
+4. Check for exposed keys before committing
+
+See [SECURITY.md](SECURITY.md) for:
+- API key management best practices
+- Git history cleanup procedures
+- Pre-commit hook setup
+- Security vulnerability reporting
+
+---
+
+## Features
+
+- **Checkpointing**: Evaluations save progress every 50 questions
+- **Resume Support**: Interrupted evaluations can be resumed
+- **High Concurrency**: Configurable concurrent API requests
+- **Error Handling**: Graceful error recovery and logging
+- **Batch Processing**: Support for OpenAI Batch API
+- **Multi-Model**: Evaluate GPT-4o, GPT-5, Claude Sonnet 4.5, DeepSeek
+
+---
+
+## Common Workflows
+
+### Evaluate a New Model
+
 ```bash
-# Setup
-make install        # create venv + install deps
-make env            # copy ENV.sample -> .env (if missing)
+# 1. Set up API key in .env
+echo "NEW_MODEL_API_KEY=your-key" >> .env
 
-# Generate from a pickle of abstracts
-make gen INPUT_PKL=data/intermediate/clean_pubmed_abstract_data_no_protocol.pkl QA_JSONL=data/processed/qa.jsonl MODEL=gpt-4o MAX_CONC=8
+# 2. Run evaluation
+python3 scripts/evaluate_openrouter.py \
+  --input-jsonl data/processed/qa.jsonl \
+  --out-json data/runs/new_model_eval.json \
+  --model provider/model-name
 
-# Optional refinement
-make refine QA_JSONL=data/processed/qa.jsonl REFINED_JSONL=data/processed/qa_refined.jsonl MODEL=gpt-4o MAX_CONC=8
-
-# Negation set and evaluation
-make negate QA_JSONL=data/processed/qa.jsonl NEGATED_JSONL=data/processed/qa_negated.jsonl
-make eval   QA_JSONL=data/processed/qa.jsonl EVAL_JSON=data/runs/$(date +%F)/gpt4o_eval.json MODEL=gpt-4o
-
-# Batch pipeline
-make batch_prepare QA_JSONL=data/processed/qa.jsonl BATCH_MODEL=gpt-4o-mini BATCH_JSONL=data/processed/qa_batch.jsonl
-make batch_submit  BATCH_JSONL=data/processed/qa_batch.jsonl BATCH_OUT_DIR=data/runs
-# After submit, note the printed batch id, then:
-make batch_parse   BATCH_ID=<batch_id> QA_JSONL=data/processed/qa.jsonl BATCH_OUT_DIR=data/runs
-make analyze       BATCH_ID=<batch_id> BATCH_OUT_DIR=data/runs
+# 3. Analyze results
+python3 scripts/analyze_errors.py \
+  --merged-jsonl data/runs/new_model_eval.json \
+  --out-dir analysis/new_model
 ```
 
-### Data sources
-- Cochrane systematic reviews: https://www.cochranelibrary.com/
-  - Local artifacts: `files-for-regeneration/clean_pubmed_abstract_data_no_protocol.pkl` (abstracts), `files-for-regeneration/pubmed_context_dataset.json`.
-- Clinical guidelines (AHA and related): https://professional.heart.org/en/guidelines-and-statements/
-  - Local artifacts: `guideline-aha/aha_guideline_evidence_cleaned.csv`, `guideline-aha/mcq_dataset.csv`, `guideline-aha/*_eval_results.json`.
-- Consolidated guideline texts: `medical_guidelines_all_text.jsonl` (root of repo).
-- Curated QA dataset and evaluation code (anonymized for review): https://anonymous.4open.science/r/llm-evidence-qa-DB-review/
+### Compare Multiple Models
 
-### Repo layout (core)
-- `medal/`: small package for config, clients, schemas
-- `scripts/`: CLIs for generation, negation, evaluation
-- `data/`: put your `raw/`, `processed/`, `runs/` here (gitignored)
-- `archive/notebooks/`: exploratory notebooks
-- `archive/ad_hoc/` and `archive/one_off/`: legacy/one-off scripts (not used by pipeline)
-
-### Data schema (JSON lines)
-- QAPair per line:
-```json
-{ "doi": "...", "question": "...", "answer": "Yes|No|No Evidence", "evidence-quality": "High|Moderate|Low|Very Low|Missing", "discrepancy": "Yes|No|Missing", "notes": "..." }
+```bash
+# After running evaluations for multiple models
+python3 scripts/compute_model_concordance.py
+python3 scripts/plot_model_comparison.py
 ```
 
-### Notes
-- Prefer using `scripts/` and the Makefile pipeline going forward.
-- Legacy ad-hoc notebooks and one-off scripts have been moved under `archive/` to keep active code paths clean.
+### Generate Negation Dataset
+
+```bash
+python3 scripts/negate_dataset.py \
+  --input-jsonl data/processed/qa.jsonl \
+  --out-jsonl data/processed/qa_negated.jsonl \
+  --model gpt-4o-mini \
+  --max-concurrent 5
+```
+
+---
+
+## Troubleshooting
+
+### API Key Errors
+
+```bash
+# Check if .env is loaded
+source .env
+echo $OPENAI_API_KEY
+
+# Verify .env is not committed
+git status .env  # Should show "Untracked files" or not listed
+```
+
+### Rate Limiting
+
+```bash
+# Reduce concurrent requests
+python3 scripts/evaluate_openrouter.py ... --max-concurrent 5
+```
+
+### Exposed Keys in Git History
+
+If you accidentally committed API keys, see [SECURITY.md](SECURITY.md#4-git-history-cleanup-if-keys-were-already-committed) for cleanup procedures.
+
+---
+
+## Contributing
+
+1. Never commit API keys or credentials
+2. Run security checks before committing:
+   ```bash
+   grep -r "sk-proj-\|sk-or-v1-\|sk-ant-" . --include="*.py" --include="*.sh"
+   ```
+3. Use pre-commit hooks (see SECURITY.md)
+4. Update documentation for new features
+
+---
+
+## Citation
+
+If you use MEDAL in your research, please cite:
+
+```bibtex
+@article{medal2025,
+  title={MEDAL: Medical Evidence Discrepancy Assessment with LLMs},
+  author={...},
+  journal={...},
+  year={2025}
+}
+```
+
+---
+
+## License
+
+[Add license information here]
+
+---
+
+## Support
+
+For issues or questions:
+- Open an issue on GitHub
+- Check [SECURITY.md](SECURITY.md) for security-related concerns
+- Review documentation in `archive/documentation/`

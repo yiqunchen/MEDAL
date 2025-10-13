@@ -8,7 +8,7 @@ import random
 import pickle
 import os
 
-API_KEY = "***OPENAI_API_KEY_REDACTED***"
+API_KEY = "OPENAI_API_KEY_REDACTED"
 random.seed(2025)
 base_model = 'gpt-4o'
 

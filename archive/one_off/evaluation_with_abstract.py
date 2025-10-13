@@ -27,7 +27,7 @@ for qid, item in question_data.items():
         item["abstract"] = "ABSTRACT NOT FOUND"
 
 # ==== Async LLM Request Setup ====
-api_key = "***OPENAI_API_KEY_REDACTED***" 
+api_key = "OPENAI_API_KEY_REDACTED" 
 client = AsyncOpenAI(api_key=api_key)
 
 async def get_response_async(client, prompt, model, semaphore):
