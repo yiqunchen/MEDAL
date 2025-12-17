@@ -1,10 +1,8 @@
-# MEDAL: Medical Evidence Discrepancy Assessment with LLMs
+# Evaluating Large Language Models for Evidence-Based Clinical Question Answering
 
-[![Security](https://img.shields.io/badge/security-reviewed-green.svg)](SECURITY.md)
+We curate a multi-source benchmark drawing from Cochrane systematic reviews and clinical guidelines, including structured recommendations from the American Heart Association and narrative guidance used by insurers.
 
-MEDAL evaluates how Large Language Models (LLMs) assess clinical evidence and reconcile discrepancies between observational studies and randomized clinical trials (RCTs).
-
-We use a multi-source dataset of clinical Q&A derived from Cochrane systematic reviews and clinical guidelines. The curated QA dataset, processing scripts, and evaluation code are available at https://anonymous.4open.science/r/llm-evidence-qa-DB-review/
+### Check out our dataset at [https://huggingface.co/datasets/cwang271/MEDAL](https://huggingface.co/datasets/cwang271/MEDAL)!
 
 ---
 
@@ -165,39 +163,8 @@ python3 scripts/plot_model_comparison.py
 ## Data Sources
 
 - **Cochrane Systematic Reviews**: https://www.cochranelibrary.com/
-  - Local artifacts: `files-for-regeneration/clean_pubmed_abstract_data_no_protocol.pkl`
 - **Clinical Guidelines (AHA)**: https://professional.heart.org/en/guidelines-and-statements/
   - Local artifacts: `guideline-aha/aha_guideline_evidence_cleaned.csv`
-- **Curated QA Dataset**: https://anonymous.4open.science/r/llm-evidence-qa-DB-review/
-
----
-
-## Security
-
-**Critical Security Requirements:**
-
-1. Never commit API keys to version control
-2. Always use `.env` for credentials (already gitignored)
-3. Use environment variables in all scripts
-4. Check for exposed keys before committing
-
-See [SECURITY.md](SECURITY.md) for:
-- API key management best practices
-- Git history cleanup procedures
-- Pre-commit hook setup
-- Security vulnerability reporting
-
----
-
-## Features
-
-- **Checkpointing**: Evaluations save progress every 50 questions
-- **Resume Support**: Interrupted evaluations can be resumed
-- **High Concurrency**: Configurable concurrent API requests
-- **Error Handling**: Graceful error recovery and logging
-- **Batch Processing**: Support for OpenAI Batch API
-- **Multi-Model**: Evaluate GPT-4o, GPT-5, Claude Sonnet 4.5, DeepSeek
-
 ---
 
 ## Common Workflows
@@ -227,17 +194,6 @@ python3 scripts/analyze_errors.py \
 python3 scripts/compute_model_concordance.py
 python3 scripts/plot_model_comparison.py
 ```
-
-### Generate Negation Dataset
-
-```bash
-python3 scripts/negate_dataset.py \
-  --input-jsonl data/processed/qa.jsonl \
-  --out-jsonl data/processed/qa_negated.jsonl \
-  --model gpt-4o-mini \
-  --max-concurrent 5
-```
-
 ---
 
 ## Troubleshooting
@@ -259,49 +215,25 @@ git status .env  # Should show "Untracked files" or not listed
 # Reduce concurrent requests
 python3 scripts/evaluate_openrouter.py ... --max-concurrent 5
 ```
-
-### Exposed Keys in Git History
-
-If you accidentally committed API keys, see [SECURITY.md](SECURITY.md#4-git-history-cleanup-if-keys-were-already-committed) for cleanup procedures.
-
 ---
-
-## Contributing
-
-1. Never commit API keys or credentials
-2. Run security checks before committing:
-   ```bash
-   grep -r "sk-proj-\|sk-or-v1-\|sk-ant-" . --include="*.py" --include="*.sh"
-   ```
-3. Use pre-commit hooks (see SECURITY.md)
-4. Update documentation for new features
-
----
-
 ## Citation
 
 If you use MEDAL in your research, please cite:
 
 ```bibtex
-@article{medal2025,
-  title={MEDAL: Medical Evidence Discrepancy Assessment with LLMs},
-  author={...},
-  journal={...},
-  year={2025}
+@article{wang2025evaluatinglargelanguagemodels,
+      title={Evaluating Large Language Models for Evidence-Based Clinical Question Answering}, 
+      author={Can Wang and Yiqun Chen},
+      year={2025},
+      eprint={2509.10843},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2509.10843}, 
 }
 ```
-
----
-
-## License
-
-[Add license information here]
-
 ---
 
 ## Support
 
 For issues or questions:
 - Open an issue on GitHub
-- Check [SECURITY.md](SECURITY.md) for security-related concerns
-- Review documentation in `archive/documentation/`
